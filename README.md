@@ -94,12 +94,16 @@ tables. To go live (per the team's full-stack conventions):
 
 ## Not yet built (next slices)
 
-- Real Supabase auth/DB + RLS, and email notifications on new comments.
-- Match Me: real email delivery (set `RESEND_API_KEY`), and a saved-results /
-  lead dashboard for agents (submissions are already stored).
-- Agent **2-page PDF export** and the fair-housing **moderation queue**.
-- **Neighborhood Insights** data (demographics, sentiment, zoning).
-- Expo / React Native mobile app on the same backend.
+- **Real Supabase** auth/DB + RLS (replace the in-memory store/session), plus
+  email notifications when someone comments on your post.
+- **Match Me**: real email delivery (set `RESEND_API_KEY` and uncomment the
+  Resend call in `email.ts`), and a saved-results / lead dashboard for agents
+  (submissions are already stored).
+- **Agent toolkit** (the 2-page PDF export is done): fair-housing **moderation
+  queue**, agent **community ratings & info** submission, and CRM sync.
+- **Neighborhood Insights** data (demographics, sentiment, zoning) — the tab is
+  currently a placeholder.
+- **Expo / React Native** mobile app on the same Supabase backend.
 
 ## Notes
 
