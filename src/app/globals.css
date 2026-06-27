@@ -1,0 +1,123 @@
+@import "tailwindcss";
+
+/*
+  Azure Onyx design system — "Editorial Glassmorphism"
+  Deep layered dark surfaces, ocean-teal primary, warm-gold prestige accent.
+  Tokens taken from the Stitch DESIGN.md handoff.
+*/
+@theme {
+  /* Surfaces */
+  --color-surface: #0d131f;
+  --color-surface-dim: #0d131f;
+  --color-surface-bright: #333946;
+  --color-surface-lowest: #080e1a;
+  --color-surface-low: #161c28;
+  --color-surface-container: #1a202c;
+  --color-surface-high: #242a37;
+  --color-surface-highest: #2f3542;
+
+  /* Content */
+  --color-on-surface: #dde2f3;
+  --color-on-surface-variant: #bdc8cc;
+  --color-muted: #94a3b8;
+
+  /* Lines */
+  --color-outline: #879396;
+  --color-outline-variant: #3e494b;
+
+  /* Ocean Teal — primary, "electric" data + active states */
+  --color-primary: #6ed5eb;
+  --color-on-primary: #00363f;
+  --color-primary-container: #2b9eb3;
+  --color-on-primary-container: #002f37;
+
+  /* Warm Gold — prestige marker, primary CTAs, verified badges */
+  --color-secondary: #ecc15e;
+  --color-on-secondary: #3f2e00;
+  --color-secondary-container: #876501;
+  --color-on-secondary-container: #ffeac3;
+
+  /* Status */
+  --color-error: #ffb4ab;
+  --color-on-error: #690005;
+  --color-success: #4ade80;
+
+  /* Type */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-playfair), Georgia, serif;
+
+  /* Radii */
+  --radius-sm: 0.25rem;
+  --radius: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  /* Atmospheric gradient instead of flat black (per DESIGN.md) */
+  background: linear-gradient(135deg, #1a202c 0%, #0d131f 55%, #121824 100%);
+  background-attachment: fixed;
+  color: var(--color-on-surface);
+  font-family: var(--font-sans);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---- Editorial Glassmorphism surface treatments ---- */
+
+/* Level 1: cards / panels */
+.glass {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* Level 2: modals / elevated popovers */
+.glass-strong {
+  background: rgba(8, 14, 26, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  box-shadow: 0 0 40px rgba(110, 213, 235, 0.1);
+}
+
+/* "Glass shelf": light catching the top/left edge */
+.glass-shelf {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-top-color: rgba(255, 255, 255, 0.16);
+  border-left-color: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* Ambient glow for active interactive elements */
+.glow-primary {
+  box-shadow: 0 0 18px rgba(110, 213, 235, 0.35);
+}
+.glow-gold {
+  box-shadow: 0 0 18px rgba(236, 193, 94, 0.35);
+}
+
+/* Editorial italic emphasis inside display headlines */
+.display-em {
+  font-style: italic;
+  color: var(--color-secondary);
+}
+
+/* High-transparency list dividers */
+.divider {
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+/* Thin scrollbars that fit the dark theme */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
