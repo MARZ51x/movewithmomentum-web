@@ -26,9 +26,13 @@ The first vertical slice is **complete and runnable with zero credentials**:
 - **Match Me** (`/match`, public lead-gen) — a questionnaire (budget, household,
   setting, priorities) → a scored **Top 5 communities** report with reasons →
   the results are "emailed" (logged in dev; Resend-ready) and saved as a lead.
-- **Roadmap placeholders**: Neighborhood Insights (`/app/insights`) and the
-  agent-only **Command Center** (`/app/toolkit`) — 2-page PDF export, ratings,
-  moderation queue.
+- **Agent Command Center** (`/app/toolkit`, agent-only) — pick a neighborhood and
+  **generate a real 2-page PDF brochure** server-side (`@react-pdf/renderer`, no
+  headless browser). Page 1: hero + overview + market snapshot + highlights.
+  Page 2: neighborhood scorecard, "why buyers love it", the agent's contact
+  block, and a Fair Housing disclaimer. Route: `/app/toolkit/pdf?community=<id>`.
+- **Roadmap placeholders**: Neighborhood Insights (`/app/insights`) and the rest
+  of the Command Center (ratings, moderation queue, CRM).
 
 ## Run it
 
@@ -70,6 +74,8 @@ src/
     communities.ts           # community catalog (→ `communities` table)
     match.ts                 # pure scoring engine (top-5 + reasons)
     email.ts                 # Match Me email seam (Resend-ready; logs in dev)
+    brochure.ts              # derives PDF market figures + highlights (pure)
+    pdf/NeighborhoodBrochure.tsx  # 2-page react-pdf document
     format.ts                # deterministic date / initials helpers
 ```
 
