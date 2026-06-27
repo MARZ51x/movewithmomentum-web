@@ -82,6 +82,21 @@ export default async function CommunityCollabPage({
 
       {/* Sidebar */}
       <aside className="space-y-4 hidden lg:block">
+        <Link
+          href="/match"
+          className="block glass-shelf rounded-xl p-5 hover:ring-1 hover:ring-secondary/40 transition"
+        >
+          <p className="text-xs font-bold tracking-[0.15em] uppercase text-secondary mb-1">
+            Match Me
+          </p>
+          <p className="font-display text-lg font-bold leading-tight">
+            Find your next community
+          </p>
+          <p className="text-sm text-on-surface-variant mt-1">
+            Answer 5 questions → get your top 5 matches, emailed to you. →
+          </p>
+        </Link>
+
         <div className="glass-shelf rounded-xl p-5">
           <p className="text-xs font-bold tracking-[0.15em] uppercase text-secondary mb-3">
             Trending Topics

@@ -7,6 +7,18 @@ import type {
   Profile,
   Role,
 } from "./types";
+import type { MatchInput, ScoredCommunity } from "./match";
+
+/** A saved "Match Me" submission — also the agent lead record. */
+export interface MatchReport {
+  id: string;
+  name: string;
+  email: string;
+  input: MatchInput;
+  results: ScoredCommunity[];
+  emailed: boolean;
+  createdAt: string;
+}
 
 /**
  * In-memory data store with seed data so the app is fully runnable today
@@ -19,6 +31,7 @@ interface DB {
   profiles: Map<string, Profile>;
   posts: Post[];
   comments: Comment[];
+  matchReports: Map<string, MatchReport>;
   seq: number;
 }
 
@@ -111,11 +124,13 @@ function seed(): DB {
     },
   ];
 
-  return { profiles, posts, comments, seq: 100 };
+  return { profiles, posts, comments, matchReports: new Map(), seq: 100 };
 }
 
 const globalForDb = globalThis as unknown as { __mwm_db?: DB };
 const db: DB = (globalForDb.__mwm_db ??= seed());
+// Self-heal stale singletons from before a field was added (dev HMR).
+db.matchReports ??= new Map();
 
 function nextId(prefix: string): string {
   db.seq += 1;
@@ -224,4 +239,34 @@ export function createComment(input: {
   };
   db.comments.push(comment);
   return comment;
+}
+
+// ---- match reports (Match Me) ----
+
+export function createMatchReport(input: {
+  name: string;
+  email: string;
+  matchInput: MatchInput;
+  results: ScoredCommunity[];
+}): MatchReport {
+  const report: MatchReport = {
+    id: nextId("m"),
+    name: input.name,
+    email: input.email,
+    input: input.matchInput,
+    results: input.results,
+    emailed: false,
+    createdAt: new Date().toISOString(),
+  };
+  db.matchReports.set(report.id, report);
+  return report;
+}
+
+export function getMatchReport(id: string): MatchReport | undefined {
+  return db.matchReports.get(id);
+}
+
+export function markReportEmailed(id: string): void {
+  const r = db.matchReports.get(id);
+  if (r) r.emailed = true;
 }

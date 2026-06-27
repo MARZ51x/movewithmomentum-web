@@ -23,9 +23,12 @@ The first vertical slice is **complete and runnable with zero credentials**:
     Agent Insight).
   - Verified-agent ★ gold badges; "Agent Insight" posts are gold-ringed and
     flagged fair-housing reviewed.
+- **Match Me** (`/match`, public lead-gen) — a questionnaire (budget, household,
+  setting, priorities) → a scored **Top 5 communities** report with reasons →
+  the results are "emailed" (logged in dev; Resend-ready) and saved as a lead.
 - **Roadmap placeholders**: Neighborhood Insights (`/app/insights`) and the
   agent-only **Command Center** (`/app/toolkit`) — 2-page PDF export, ratings,
-  moderation queue, Match Me.
+  moderation queue.
 
 ## Run it
 
@@ -56,12 +59,17 @@ src/
       page.tsx               # Community Collab feed
       actions.ts             # createPost / addComment (Zod-validated)
       insights/ toolkit/     # roadmap placeholders
-  components/                # Brand, Avatar, Badges, HubNav, Composer, PostCard…
+    match/                   # Match Me: questionnaire + server action
+      results/[id]/          # scored Top 5 report
+  components/                # Brand, Avatar, Badges, HubNav, Composer, PostCard, CommunityTile…
   lib/
     types.ts                 # domain types — mirror the future DB tables
     store.ts                 # in-memory seed store (the Supabase swap-in seam)
     session.ts               # cookie session (→ Supabase Auth later)
     supabase.ts              # client factory; no-ops until keys are set
+    communities.ts           # community catalog (→ `communities` table)
+    match.ts                 # pure scoring engine (top-5 + reasons)
+    email.ts                 # Match Me email seam (Resend-ready; logs in dev)
     format.ts                # deterministic date / initials helpers
 ```
 
@@ -81,7 +89,8 @@ tables. To go live (per the team's full-stack conventions):
 ## Not yet built (next slices)
 
 - Real Supabase auth/DB + RLS, and email notifications on new comments.
-- **Match Me**: questionnaire → top-5 community matches → emailed report.
+- Match Me: real email delivery (set `RESEND_API_KEY`), and a saved-results /
+  lead dashboard for agents (submissions are already stored).
 - Agent **2-page PDF export** and the fair-housing **moderation queue**.
 - **Neighborhood Insights** data (demographics, sentiment, zoning).
 - Expo / React Native mobile app on the same backend.

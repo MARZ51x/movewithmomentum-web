@@ -12,12 +12,20 @@ export default async function Home() {
     <main className="flex-1 flex flex-col">
       <header className="flex items-center justify-between px-6 sm:px-10 py-6">
         <Brand />
-        <Link
-          href="/login"
-          className="text-sm text-on-surface-variant hover:text-primary transition-colors"
-        >
-          Sign in
-        </Link>
+        <div className="flex items-center gap-5">
+          <Link
+            href="/match"
+            className="text-sm text-primary hover:underline"
+          >
+            Match Me
+          </Link>
+          <Link
+            href="/login"
+            className="text-sm text-on-surface-variant hover:text-primary transition-colors"
+          >
+            Sign in
+          </Link>
+        </div>
       </header>
 
       <section className="flex-1 grid lg:grid-cols-2 gap-12 items-center max-w-7xl w-full mx-auto px-6 sm:px-10 py-12">
