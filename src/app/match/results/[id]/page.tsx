@@ -22,7 +22,7 @@ export default async function ResultsPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const report = getMatchReport(id);
+  const report = await getMatchReport(id);
   if (!report) notFound();
 
   return (

@@ -2,15 +2,19 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { createProfile, getProfileByEmail } from "@/lib/store";
-import { setSession, clearSession } from "@/lib/session";
+import {
+  createSupabaseServerClient,
+  createSupabaseServiceClient,
+} from "@/lib/supabase";
 
 export interface ActionState {
   error?: string;
 }
 
 const baseSchema = z.object({
-  role: z.enum(["resident", "agent", "researcher"]),
+  // Public signup may only create buyer/seller ("user") or agent accounts.
+  // The "admin" role is assigned server-side (DB / service role) only.
+  role: z.enum(["agent", "user"]),
   fullName: z.string().trim().min(2, "Please enter your full name."),
   email: z.string().trim().toLowerCase().email("Enter a valid email address."),
   password: z.string().min(8, "Password must be at least 8 characters."),
@@ -55,21 +59,50 @@ export async function registerAction(
     return { error: "Please confirm the captcha to continue." };
   }
 
-  if (getProfileByEmail(data.email)) {
-    return { error: "An account with that email already exists. Sign in instead." };
+  const supabase = await createSupabaseServerClient();
+
+  // Supabase Auth owns email/password. With email confirmations disabled this
+  // returns an active session, so the profile insert below runs authenticated
+  // as the new user (auth.uid() = id), satisfying the insert policy.
+  const { data: signUp, error: signUpError } = await supabase.auth.signUp({
+    email: data.email,
+    password: data.password,
+  });
+  if (signUpError || !signUp.user) {
+    return {
+      error:
+        signUpError?.message ??
+        "We couldn't create your account. Please try again.",
+    };
   }
 
-  const profile = createProfile({
-    fullName: data.fullName,
+  // Insert the domain profile row. The `lock_profile_privileged_columns`
+  // trigger forces is_verified_agent = false and pins email to the JWT, so
+  // agent verification is now a separate admin/service-role step.
+  const { error: profileError } = await supabase.from("profiles").insert({
+    id: signUp.user.id,
+    full_name: data.fullName,
     email: data.email,
     role: data.role,
     neighborhood: data.neighborhood,
     address: data.address || null,
-    licenseNumber: data.licenseNumber || null,
-    businessPhone: data.businessPhone || null,
+    license_number: data.licenseNumber || null,
+    business_phone: data.businessPhone || null,
   });
 
-  await setSession(profile.id);
+  if (profileError) {
+    // Roll back the orphaned auth user so the email can be reused.
+    try {
+      const admin = createSupabaseServiceClient();
+      await admin.auth.admin.deleteUser(signUp.user.id);
+    } catch {
+      // Best-effort cleanup; surface the original failure regardless.
+    }
+    return {
+      error: "We couldn't finish setting up your profile. Please try again.",
+    };
+  }
+
   redirect("/app");
 }
 
@@ -87,17 +120,20 @@ export async function loginAction(
     return { error: parsed.error.issues[0]?.message ?? "Invalid form." };
   }
 
-  // Mock auth: match by email only. Real Supabase Auth verifies the password.
-  const profile = getProfileByEmail(parsed.data.email);
-  if (!profile) {
-    return { error: "No account found for that email. Create your hub first." };
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.auth.signInWithPassword({
+    email: parsed.data.email,
+    password: parsed.data.password,
+  });
+  if (error) {
+    return { error: "Invalid email or password." };
   }
 
-  await setSession(profile.id);
   redirect("/app");
 }
 
 export async function logoutAction(): Promise<void> {
-  await clearSession();
+  const supabase = await createSupabaseServerClient();
+  await supabase.auth.signOut();
   redirect("/");
 }

@@ -75,14 +75,6 @@ export default function LoginPage() {
             {pending ? "Signing in…" : "Enter the hub →"}
           </button>
         </form>
-
-        <p className="text-xs text-muted mt-5 text-center">
-          Demo logins (no password needed):{" "}
-          <span className="text-on-surface-variant">marcus@globalluxury.com</span>{" "}
-          (agent) ·{" "}
-          <span className="text-on-surface-variant">sarah@skylineoaks.org</span>{" "}
-          (resident)
-        </p>
       </div>
 
       <p className="text-sm text-on-surface-variant mt-6">

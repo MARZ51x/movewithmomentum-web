@@ -27,7 +27,7 @@ export default async function CommunityCollabPage({
 
   const { category: raw } = await searchParams;
   const category = isCategory(raw) ? raw : "all";
-  const posts = listFeed({ neighborhood: user.neighborhood, category });
+  const posts = await listFeed({ neighborhood: user.neighborhood, category });
 
   return (
     <div className="grid lg:grid-cols-[1fr_300px] gap-6">

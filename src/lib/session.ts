@@ -1,38 +1,40 @@
 import "server-only";
-import { cookies } from "next/headers";
-import { getProfile } from "./store";
+import { createSupabaseServerClient } from "./supabase";
 import type { Profile } from "./types";
 
 /**
- * Mock auth session. Today the signed-in user id is stored in a cookie. When
- * Supabase Auth is wired up, replace these with `supabase.auth.getUser()` /
- * `signInWithPassword` / `signOut` — the rest of the app only depends on
- * `getCurrentUser()` returning a `Profile | null`.
+ * Auth session backed by Supabase Auth. `getCurrentUser()` resolves the signed-in
+ * Auth user from the request cookies, then loads their domain `profiles` row.
+ * The base table's RLS only lets the owner read their full row, so this returns
+ * the caller's own profile (or null when signed out).
  */
 
-const COOKIE = "mwm_session";
-
 export async function getCurrentUser(): Promise<Profile | null> {
-  const store = await cookies();
-  const id = store.get(COOKIE)?.value;
-  if (!id) return null;
-  return getProfile(id) ?? null;
-}
+  const supabase = await createSupabaseServerClient();
 
-/** Call only from a Server Action or Route Handler. */
-export async function setSession(profileId: string): Promise<void> {
-  const store = await cookies();
-  store.set(COOKIE, profileId, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 30,
-  });
-}
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
 
-/** Call only from a Server Action or Route Handler. */
-export async function clearSession(): Promise<void> {
-  const store = await cookies();
-  store.delete(COOKIE);
+  const { data: row } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", user.id)
+    .single();
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    fullName: row.full_name,
+    email: row.email,
+    role: row.role,
+    neighborhood: row.neighborhood,
+    address: row.address,
+    avatarUrl: row.avatar_url,
+    licenseNumber: row.license_number,
+    businessPhone: row.business_phone,
+    isVerifiedAgent: row.is_verified_agent,
+    createdAt: row.created_at,
+  };
 }

@@ -58,7 +58,7 @@ export async function matchAction(
     5,
   );
 
-  const report = createMatchReport({
+  const report = await createMatchReport({
     name,
     email,
     matchInput: { budget, setting, household, priorities },
@@ -66,7 +66,7 @@ export async function matchAction(
   });
 
   const emailRes = await sendMatchReport(report);
-  if (emailRes.ok) markReportEmailed(report.id);
+  if (emailRes.ok) await markReportEmailed(report.id);
 
   redirect(`/match/results/${report.id}`);
 }

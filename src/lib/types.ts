@@ -4,13 +4,30 @@
  * generate types into `database.types.ts` and re-export the row types here.
  */
 
-export type Role = "resident" | "agent" | "researcher";
+// 'user' is a buyer or seller; 'agent' is a licensed realtor; 'admin' is a
+// privileged moderator/operator (assigned server-side only, never via signup).
+export type Role = "admin" | "agent" | "user";
 
 export type PostCategory =
   | "market" // Market Updates
   | "resident" // Resident Voice
   | "events" // Local Events
   | "agent_insight"; // Agent Insight (agents only)
+
+/**
+ * Non-sensitive author projection, maps to `public.profiles_public`. This is
+ * what the feed renders for post/comment authors (the full `profiles` row is
+ * RLS-locked to its owner). PII fields (email, address, license, phone) are
+ * intentionally absent.
+ */
+export interface PublicProfile {
+  id: string;
+  fullName: string;
+  avatarUrl: string | null;
+  role: Role;
+  isVerifiedAgent: boolean;
+  neighborhood: string;
+}
 
 /** maps to `public.profiles` */
 export interface Profile {
@@ -50,8 +67,8 @@ export interface Comment {
 
 /** A post joined with its author + comments (joined comments joined with authors). */
 export interface PostWithRelations extends Post {
-  author: Profile;
-  comments: (Comment & { author: Profile })[];
+  author: PublicProfile;
+  comments: (Comment & { author: PublicProfile })[];
 }
 
 export const CATEGORY_LABELS: Record<PostCategory, string> = {
@@ -62,7 +79,7 @@ export const CATEGORY_LABELS: Record<PostCategory, string> = {
 };
 
 export const ROLE_LABELS: Record<Role, string> = {
-  resident: "Resident",
+  admin: "Admin",
   agent: "Licensed Agent",
-  researcher: "Researcher / News",
+  user: "Buyer / Seller",
 };

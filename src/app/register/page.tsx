@@ -8,7 +8,7 @@ import type { Role } from "@/lib/types";
 
 const ROLES: { value: Role; label: string; tagline: string }[] = [
   {
-    value: "resident",
+    value: "user",
     label: "Buyer / Seller",
     tagline: "Get your neighborhood matches & claim your property",
   },
@@ -17,17 +17,12 @@ const ROLES: { value: Role; label: string; tagline: string }[] = [
     label: "Realtor",
     tagline: "Claim your profile — upload license & business phone",
   },
-  {
-    value: "researcher",
-    label: "Researcher / News",
-    tagline: "Access the data & news we share",
-  },
 ];
 
 const initial: ActionState = {};
 
 export default function RegisterPage() {
-  const [role, setRole] = useState<Role>("resident");
+  const [role, setRole] = useState<Role>("user");
   const [captcha, setCaptcha] = useState(false);
   const [state, formAction, pending] = useActionState(registerAction, initial);
 
@@ -56,7 +51,7 @@ export default function RegisterPage() {
 
         {/* Role selector — routes each persona to its own portal */}
         <p className={labelCls}>I am a&hellip;</p>
-        <div className="grid grid-cols-3 gap-2 mb-2" role="tablist">
+        <div className="grid grid-cols-2 gap-2 mb-2" role="tablist">
           {ROLES.map((r) => {
             const active = role === r.value;
             return (
@@ -128,7 +123,7 @@ export default function RegisterPage() {
 
           <div>
             <label className={labelCls} htmlFor="neighborhood">
-              {role === "researcher" ? "Area of interest" : "Neighborhood"}
+              Neighborhood
             </label>
             <input
               id="neighborhood"
@@ -140,27 +135,25 @@ export default function RegisterPage() {
             />
           </div>
 
-          {role !== "researcher" && (
-            <div>
-              <label className={labelCls} htmlFor="address">
-                Primary Residence Search
-              </label>
-              <div className="relative">
-                <input
-                  id="address"
-                  name="address"
-                  className={`${inputCls} pr-10`}
-                  placeholder="Search address, neighborhood…"
-                />
-                <span
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-secondary"
-                  aria-hidden
-                >
-                  ◎
-                </span>
-              </div>
+          <div>
+            <label className={labelCls} htmlFor="address">
+              Primary Residence Search
+            </label>
+            <div className="relative">
+              <input
+                id="address"
+                name="address"
+                className={`${inputCls} pr-10`}
+                placeholder="Search address, neighborhood…"
+              />
+              <span
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-secondary"
+                aria-hidden
+              >
+                ◎
+              </span>
             </div>
-          )}
+          </div>
 
           {/* Agent-only: Claim Your Profile */}
           {role === "agent" && (
