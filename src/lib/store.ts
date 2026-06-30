@@ -1,11 +1,15 @@
 import "server-only";
+import {
+  createSupabaseServerClient,
+  createSupabaseServiceClient,
+} from "./supabase";
+import type { Json } from "./database.types";
 import type {
   Comment,
   Post,
   PostCategory,
   PostWithRelations,
-  Profile,
-  Role,
+  PublicProfile,
 } from "./types";
 import type { MatchInput, ScoredCommunity } from "./match";
 
@@ -21,252 +25,318 @@ export interface MatchReport {
 }
 
 /**
- * In-memory data store with seed data so the app is fully runnable today
- * without any Supabase credentials. Every function here is the seam where the
- * real Supabase queries will go (see `src/lib/data.ts` for the public API used
- * by the UI). We keep it on `globalThis` so it survives dev-server HMR reloads.
+ * Data access layer. Every function here talks to Supabase, mapping the
+ * snake_case columns to the camelCase domain shapes in `types.ts`. Reads/writes
+ * that act on behalf of the signed-in user go through the cookie-bound server
+ * client (RLS applies); the public Match Me funnel uses the service-role client
+ * because it must read/update reports that anonymous callers can't select.
  */
 
-interface DB {
-  profiles: Map<string, Profile>;
-  posts: Post[];
-  comments: Comment[];
-  matchReports: Map<string, MatchReport>;
-  seq: number;
-}
+// ---- mappers (snake_case row -> camelCase domain) ----
 
-const SEED_NEIGHBORHOOD = "Skyline Oaks";
+type PublicProfileRow = {
+  id: string | null;
+  full_name: string | null;
+  avatar_url: string | null;
+  role: PublicProfile["role"] | null;
+  is_verified_agent: boolean | null;
+  neighborhood: string | null;
+};
 
-function seed(): DB {
-  const profiles = new Map<string, Profile>();
-
-  const add = (p: Omit<Profile, "createdAt">) =>
-    profiles.set(p.id, { ...p, createdAt: "2026-06-20T12:00:00.000Z" });
-
-  add({
-    id: "u_marcus",
-    fullName: "Marcus Sterling",
-    email: "marcus@globalluxury.com",
-    role: "agent",
-    neighborhood: SEED_NEIGHBORHOOD,
-    address: null,
-    avatarUrl: null,
-    licenseNumber: "TX-0294817",
-    businessPhone: "+1 (512) 555-0147",
-    isVerifiedAgent: true,
-  });
-  add({
-    id: "u_sarah",
-    fullName: "Sarah Jennings",
-    email: "sarah@skylineoaks.org",
-    role: "resident",
-    neighborhood: SEED_NEIGHBORHOOD,
-    address: "812 Oak Crest Ln",
-    avatarUrl: null,
-    licenseNumber: null,
-    businessPhone: null,
-    isVerifiedAgent: false,
-  });
-  add({
-    id: "u_david",
-    fullName: "David Chen",
-    email: "david@skylineoaks.org",
-    role: "resident",
-    neighborhood: SEED_NEIGHBORHOOD,
-    address: "44 Lantern Walk",
-    avatarUrl: null,
-    licenseNumber: null,
-    businessPhone: null,
-    isVerifiedAgent: false,
-  });
-
-  const posts: Post[] = [
-    {
-      id: "p_1",
-      authorId: "u_marcus",
-      body: "Just closed a record deal in the Heights district. We're seeing a 14% increase in buyer inquiries for modern brutalist architecture. If you're considering listing, now is the time to leverage the current inventory shortage. Happy to run a free comp analysis for any neighbor here.",
-      category: "agent_insight",
-      fairHousingApproved: true,
-      createdAt: "2026-06-25T15:30:00.000Z",
-    },
-    {
-      id: "p_2",
-      authorId: "u_sarah",
-      body: "The new community garden project is finally taking shape! Check out the progress on the sustainable irrigation system we're installing this weekend. Volunteers are still welcome — bring gloves. 🌱",
-      category: "events",
-      fairHousingApproved: true,
-      createdAt: "2026-06-25T18:05:00.000Z",
-    },
-    {
-      id: "p_3",
-      authorId: "u_david",
-      body: "Does anyone have a recommendation for a reliable electrician in the area? Looking to add some outdoor lighting before the block party.",
-      category: "resident",
-      fairHousingApproved: true,
-      createdAt: "2026-06-26T09:12:00.000Z",
-    },
-  ];
-
-  const comments: Comment[] = [
-    {
-      id: "c_1",
-      postId: "p_2",
-      authorId: "u_david",
-      body: "Count me in for Saturday morning! I'll bring an extra wheelbarrow.",
-      createdAt: "2026-06-25T19:00:00.000Z",
-    },
-    {
-      id: "c_2",
-      postId: "p_3",
-      authorId: "u_sarah",
-      body: "We used Lumen Electric last month — fast and fairly priced. I'll DM you the number.",
-      createdAt: "2026-06-26T10:01:00.000Z",
-    },
-  ];
-
-  return { profiles, posts, comments, matchReports: new Map(), seq: 100 };
-}
-
-const globalForDb = globalThis as unknown as { __mwm_db?: DB };
-const db: DB = (globalForDb.__mwm_db ??= seed());
-// Self-heal stale singletons from before a field was added (dev HMR).
-db.matchReports ??= new Map();
-
-function nextId(prefix: string): string {
-  db.seq += 1;
-  return `${prefix}_${db.seq}`;
-}
-
-// ---- profiles ----
-
-export function getProfile(id: string): Profile | undefined {
-  return db.profiles.get(id);
-}
-
-export function getProfileByEmail(email: string): Profile | undefined {
-  const lower = email.toLowerCase();
-  return [...db.profiles.values()].find((p) => p.email.toLowerCase() === lower);
-}
-
-export function createProfile(input: {
-  fullName: string;
-  email: string;
-  role: Role;
-  neighborhood: string;
-  address?: string | null;
-  licenseNumber?: string | null;
-  businessPhone?: string | null;
-}): Profile {
-  const profile: Profile = {
-    id: nextId("u"),
-    fullName: input.fullName,
-    email: input.email,
-    role: input.role,
-    neighborhood: input.neighborhood,
-    address: input.address ?? null,
-    avatarUrl: null,
-    licenseNumber: input.licenseNumber ?? null,
-    businessPhone: input.businessPhone ?? null,
-    // Agents are auto-flagged verified here; in production this is a manual
-    // license check before the gold "Verified Agent" badge is granted.
-    isVerifiedAgent: input.role === "agent",
-    createdAt: new Date().toISOString(),
+function mapPublicProfile(row: PublicProfileRow): PublicProfile {
+  return {
+    id: row.id ?? "",
+    fullName: row.full_name ?? "",
+    avatarUrl: row.avatar_url,
+    role: row.role ?? "user",
+    isVerifiedAgent: row.is_verified_agent ?? false,
+    neighborhood: row.neighborhood ?? "",
   };
-  db.profiles.set(profile.id, profile);
-  return profile;
+}
+
+type PostRow = {
+  id: string;
+  author_id: string;
+  body: string;
+  category: PostCategory;
+  fair_housing_approved: boolean;
+  created_at: string;
+};
+
+function mapPost(row: PostRow): Post {
+  return {
+    id: row.id,
+    authorId: row.author_id,
+    body: row.body,
+    category: row.category,
+    fairHousingApproved: row.fair_housing_approved,
+    createdAt: row.created_at,
+  };
+}
+
+type CommentRow = {
+  id: string;
+  post_id: string;
+  author_id: string;
+  body: string;
+  created_at: string;
+};
+
+function mapComment(row: CommentRow): Comment {
+  return {
+    id: row.id,
+    postId: row.post_id,
+    authorId: row.author_id,
+    body: row.body,
+    createdAt: row.created_at,
+  };
+}
+
+type MatchReportRow = {
+  id: string;
+  name: string;
+  email: string;
+  input: Json;
+  results: Json;
+  emailed: boolean;
+  created_at: string;
+};
+
+function mapMatchReport(row: MatchReportRow): MatchReport {
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    input: row.input as unknown as MatchInput,
+    results: row.results as unknown as ScoredCommunity[],
+    emailed: row.emailed,
+    createdAt: row.created_at,
+  };
 }
 
 // ---- feed ----
 
-export function listFeed(opts: {
+export async function listFeed(opts: {
   neighborhood: string;
   category?: PostCategory | "all";
-}): PostWithRelations[] {
+}): Promise<PostWithRelations[]> {
   const category = opts.category ?? "all";
-  return db.posts
-    .filter((p) => p.fairHousingApproved)
-    .filter((p) => category === "all" || p.category === category)
-    .map((p) => hydrate(p))
-    .filter((p): p is PostWithRelations => p !== null)
-    .filter((p) => p.author.neighborhood === opts.neighborhood)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const supabase = await createSupabaseServerClient();
+
+  let query = supabase
+    .from("posts")
+    .select(
+      "id, author_id, body, category, fair_housing_approved, created_at, comments(id, post_id, author_id, body, created_at)",
+    )
+    // Only fair-housing-approved posts surface in the feed (RLS also enforces
+    // this for non-owners; the explicit filter keeps owners' pending posts out).
+    .eq("fair_housing_approved", true)
+    .order("created_at", { ascending: false });
+
+  if (category !== "all") query = query.eq("category", category);
+
+  const { data: posts, error } = await query;
+  if (error || !posts) return [];
+
+  // Hydrate authors via the non-PII projection (profiles_public). The full
+  // profiles row is RLS-locked to its owner, and the view has no FK PostgREST
+  // can embed, so we batch-fetch the authors and join in memory.
+  const authorIds = new Set<string>();
+  for (const p of posts) {
+    authorIds.add(p.author_id);
+    for (const c of p.comments ?? []) authorIds.add(c.author_id);
+  }
+  if (authorIds.size === 0) return [];
+
+  const { data: authorRows } = await supabase
+    .from("profiles_public")
+    .select("id, full_name, avatar_url, role, is_verified_agent, neighborhood")
+    .in("id", [...authorIds]);
+
+  const authors = new Map<string, PublicProfile>();
+  for (const row of authorRows ?? []) {
+    if (!row.id) continue;
+    authors.set(row.id, mapPublicProfile(row));
+  }
+
+  const result: PostWithRelations[] = [];
+  for (const p of posts) {
+    const author = authors.get(p.author_id);
+    if (!author || author.neighborhood !== opts.neighborhood) continue;
+
+    const comments = (p.comments ?? [])
+      .map((c) => {
+        const cAuthor = authors.get(c.author_id);
+        return cAuthor ? { ...mapComment(c), author: cAuthor } : null;
+      })
+      .filter((c): c is Comment & { author: PublicProfile } => c !== null)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+
+    result.push({ ...mapPost(p), author, comments });
+  }
+  return result;
 }
 
-function hydrate(post: Post): PostWithRelations | null {
-  const author = db.profiles.get(post.authorId);
-  if (!author) return null;
-  const comments = db.comments
-    .filter((c) => c.postId === post.id)
-    .map((c) => {
-      const cAuthor = db.profiles.get(c.authorId);
-      return cAuthor ? { ...c, author: cAuthor } : null;
-    })
-    .filter((c): c is Comment & { author: Profile } => c !== null)
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  return { ...post, author, comments };
+// ---- moderation (admin-only) ----
+
+/**
+ * Pending posts awaiting fair-housing review. Mirrors `listFeed`'s hydration but
+ * selects unapproved rows and skips the neighborhood filter — admins moderate
+ * across neighborhoods. RLS ("posts readable ... or admin") still gates this to
+ * admins/owners, and the moderation page is admin-gated on top.
+ */
+export async function listPendingPosts(): Promise<PostWithRelations[]> {
+  const supabase = await createSupabaseServerClient();
+
+  const { data: posts, error } = await supabase
+    .from("posts")
+    .select(
+      "id, author_id, body, category, fair_housing_approved, created_at, comments(id, post_id, author_id, body, created_at)",
+    )
+    .eq("fair_housing_approved", false)
+    .order("created_at", { ascending: false });
+  if (error || !posts) return [];
+
+  const authorIds = new Set<string>();
+  for (const p of posts) {
+    authorIds.add(p.author_id);
+    for (const c of p.comments ?? []) authorIds.add(c.author_id);
+  }
+  if (authorIds.size === 0) return [];
+
+  const { data: authorRows } = await supabase
+    .from("profiles_public")
+    .select("id, full_name, avatar_url, role, is_verified_agent, neighborhood")
+    .in("id", [...authorIds]);
+
+  const authors = new Map<string, PublicProfile>();
+  for (const row of authorRows ?? []) {
+    if (!row.id) continue;
+    authors.set(row.id, mapPublicProfile(row));
+  }
+
+  const result: PostWithRelations[] = [];
+  for (const p of posts) {
+    const author = authors.get(p.author_id);
+    if (!author) continue;
+
+    const comments = (p.comments ?? [])
+      .map((c) => {
+        const cAuthor = authors.get(c.author_id);
+        return cAuthor ? { ...mapComment(c), author: cAuthor } : null;
+      })
+      .filter((c): c is Comment & { author: PublicProfile } => c !== null)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+
+    result.push({ ...mapPost(p), author, comments });
+  }
+  return result;
 }
 
-export function createPost(input: {
+/** Approve a pending post. Allowed by the "admins update any post" RLS policy. */
+export async function approvePost(id: string): Promise<void> {
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("posts")
+    .update({ fair_housing_approved: true })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+/** Decline (delete) a post. Allowed by the "admins delete any post" RLS policy. */
+export async function declinePost(id: string): Promise<void> {
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.from("posts").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export async function createPost(input: {
   authorId: string;
   body: string;
   category: PostCategory;
-  /** Agent posts require fair-housing approval before they appear in the feed. */
-  fairHousingApproved: boolean;
-}): Post {
-  const post: Post = {
-    id: nextId("p"),
-    authorId: input.authorId,
-    body: input.body,
-    category: input.category,
-    fairHousingApproved: input.fairHousingApproved,
-    createdAt: new Date().toISOString(),
-  };
-  db.posts.push(post);
-  return post;
+}): Promise<Post> {
+  // The DB moderation trigger forces fair_housing_approved = false on insert for
+  // non-service callers, so a post created here always starts pending until an
+  // admin/service-role approval.
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("posts")
+    .insert({
+      author_id: input.authorId,
+      body: input.body,
+      category: input.category,
+    })
+    .select("id, author_id, body, category, fair_housing_approved, created_at")
+    .single();
+  if (error || !data) {
+    throw new Error(error?.message ?? "Failed to create post.");
+  }
+  return mapPost(data);
 }
 
-export function createComment(input: {
+export async function createComment(input: {
   postId: string;
   authorId: string;
   body: string;
-}): Comment {
-  const comment: Comment = {
-    id: nextId("c"),
-    postId: input.postId,
-    authorId: input.authorId,
-    body: input.body,
-    createdAt: new Date().toISOString(),
-  };
-  db.comments.push(comment);
-  return comment;
+}): Promise<Comment> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("comments")
+    .insert({
+      post_id: input.postId,
+      author_id: input.authorId,
+      body: input.body,
+    })
+    .select("id, post_id, author_id, body, created_at")
+    .single();
+  if (error || !data) {
+    throw new Error(error?.message ?? "Failed to create comment.");
+  }
+  return mapComment(data);
 }
 
 // ---- match reports (Match Me) ----
 
-export function createMatchReport(input: {
+export async function createMatchReport(input: {
   name: string;
   email: string;
   matchInput: MatchInput;
   results: ScoredCommunity[];
-}): MatchReport {
-  const report: MatchReport = {
-    id: nextId("m"),
-    name: input.name,
-    email: input.email,
-    input: input.matchInput,
-    results: input.results,
-    emailed: false,
-    createdAt: new Date().toISOString(),
-  };
-  db.matchReports.set(report.id, report);
-  return report;
+}): Promise<MatchReport> {
+  // Match Me is a public, unauthenticated funnel. Anon callers may insert but
+  // can't select the row back, so we use the service-role client server-side.
+  const supabase = createSupabaseServiceClient();
+  const { data, error } = await supabase
+    .from("match_reports")
+    .insert({
+      user_id: null,
+      name: input.name,
+      email: input.email,
+      input: input.matchInput as unknown as Json,
+      results: input.results as unknown as Json,
+    })
+    .select("*")
+    .single();
+  if (error || !data) {
+    throw new Error(error?.message ?? "Failed to save match report.");
+  }
+  return mapMatchReport(data);
 }
 
-export function getMatchReport(id: string): MatchReport | undefined {
-  return db.matchReports.get(id);
+export async function getMatchReport(
+  id: string,
+): Promise<MatchReport | undefined> {
+  const supabase = createSupabaseServiceClient();
+  const { data, error } = await supabase
+    .from("match_reports")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error || !data) return undefined;
+  return mapMatchReport(data);
 }
 
-export function markReportEmailed(id: string): void {
-  const r = db.matchReports.get(id);
-  if (r) r.emailed = true;
+export async function markReportEmailed(id: string): Promise<void> {
+  const supabase = createSupabaseServiceClient();
+  await supabase.from("match_reports").update({ emailed: true }).eq("id", id);
 }

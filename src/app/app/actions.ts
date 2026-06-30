@@ -25,14 +25,13 @@ export async function createPostAction(formData: FormData) {
     category = "resident";
   }
 
-  createPost({
+  // The DB moderation trigger forces fair_housing_approved = false on insert,
+  // so posts created here sit in the moderation queue until an admin/service
+  // role approves them (and then surface in the feed).
+  await createPost({
     authorId: user.id,
     body: parsed.data.body,
     category,
-    // Demo: auto-approve so posts show immediately. In production an agent
-    // "Agent Insight" post sits in the moderation queue (fairHousingApproved
-    // = false) until a fair-housing review passes, then flips to true.
-    fairHousingApproved: true,
   });
 
   revalidatePath("/app");
@@ -53,7 +52,7 @@ export async function addCommentAction(formData: FormData) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid comment." };
   }
 
-  createComment({
+  await createComment({
     postId: parsed.data.postId,
     authorId: user.id,
     body: parsed.data.body,

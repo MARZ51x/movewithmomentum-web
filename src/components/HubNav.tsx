@@ -8,6 +8,7 @@ const TABS: { href: string; label: string; roles?: Role[] }[] = [
   { href: "/app", label: "Community Collab" },
   { href: "/app/insights", label: "Neighborhood Insights" },
   { href: "/app/toolkit", label: "Agent Toolkit", roles: ["agent"] },
+  { href: "/app/moderation", label: "Moderation", roles: ["admin"] },
 ];
 
 export function HubNav({ role }: { role: Role }) {
