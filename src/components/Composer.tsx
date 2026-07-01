@@ -26,6 +26,7 @@ export function Composer({
     isAgent ? "agent_insight" : "resident",
   );
   const [error, setError] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
   const [pending, setPending] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const options = OPTIONS.filter((o) => !o.agentOnly || isAgent);
@@ -33,13 +34,17 @@ export function Composer({
   async function onSubmit(formData: FormData) {
     setPending(true);
     setError(null);
+    setSubmitted(false);
     const res = await createPostAction(formData);
     setPending(false);
     if (res?.error) {
       setError(res.error);
       return;
     }
+    // New posts are held for fair-housing review, so they won't appear in the
+    // feed yet. Confirm receipt instead of implying it published.
     formRef.current?.reset();
+    setSubmitted(true);
   }
 
   return (
@@ -50,6 +55,7 @@ export function Composer({
           <textarea
             name="body"
             rows={2}
+            onChange={() => submitted && setSubmitted(false)}
             placeholder={
               isAgent
                 ? "Share a market update or community insight…"
@@ -89,6 +95,12 @@ export function Composer({
           </div>
 
           {error && <p className="mt-2 text-sm text-error">{error}</p>}
+          {submitted && !error && (
+            <p className="mt-2 text-sm text-secondary">
+              Submitted — your post is pending fair-housing review and will
+              appear in the feed once approved.
+            </p>
+          )}
         </div>
       </div>
     </form>

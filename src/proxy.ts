@@ -7,7 +7,11 @@ import type { Database } from "@/lib/database.types";
  * matched request to refresh the Supabase auth session cookie. Without it,
  * server-side sessions silently expire.
  *
- * Do not run logic between creating the client and calling `getUser()`.
+ * `getClaims()` reads the session first (refreshing the cookie when needed, same
+ * as before) but verifies the JWT locally instead of calling the Auth server, so
+ * this per-request hop no longer costs a network round-trip on asymmetric keys.
+ *
+ * Do not run logic between creating the client and calling `getClaims()`.
  */
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -31,7 +35,7 @@ export async function proxy(request: NextRequest) {
     },
   );
 
-  await supabase.auth.getUser();
+  await supabase.auth.getClaims();
 
   return response;
 }

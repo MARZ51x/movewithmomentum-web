@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { createSupabaseServerClient } from "./supabase";
 import type { Profile } from "./types";
 
@@ -7,20 +8,25 @@ import type { Profile } from "./types";
  * Auth user from the request cookies, then loads their domain `profiles` row.
  * The base table's RLS only lets the owner read their full row, so this returns
  * the caller's own profile (or null when signed out).
+ *
+ * Wrapped in React `cache()` so multiple callers in the same request render
+ * (e.g. the hub layout and the feed page) share a single resolution instead of
+ * each re-verifying the token and re-reading the profile. Identity comes from
+ * `getClaims()`, which verifies the JWT locally (no Auth-server round-trip) when
+ * the project uses asymmetric signing keys.
  */
 
-export async function getCurrentUser(): Promise<Profile | null> {
+export const getCurrentUser = cache(async (): Promise<Profile | null> => {
   const supabase = await createSupabaseServerClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
+  const { data, error } = await supabase.auth.getClaims();
+  const userId = data?.claims?.sub;
+  if (error || !userId) return null;
 
   const { data: row } = await supabase
     .from("profiles")
     .select("*")
-    .eq("id", user.id)
+    .eq("id", userId)
     .single();
   if (!row) return null;
 
@@ -37,4 +43,4 @@ export async function getCurrentUser(): Promise<Profile | null> {
     isVerifiedAgent: row.is_verified_agent,
     createdAt: row.created_at,
   };
-}
+});

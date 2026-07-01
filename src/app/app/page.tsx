@@ -3,7 +3,11 @@ import { Composer } from "@/components/Composer";
 import { PostCard } from "@/components/PostCard";
 import { getCurrentUser } from "@/lib/session";
 import { listFeed } from "@/lib/store";
-import { CATEGORY_LABELS, type PostCategory } from "@/lib/types";
+import {
+  CATEGORY_LABELS,
+  type PostCategory,
+  type PublicProfile,
+} from "@/lib/types";
 
 const FILTERS: { value: PostCategory | "all"; label: string }[] = [
   { value: "all", label: "All Stories" },
@@ -28,6 +32,17 @@ export default async function CommunityCollabPage({
   const { category: raw } = await searchParams;
   const category = isCategory(raw) ? raw : "all";
   const posts = await listFeed({ neighborhood: user.neighborhood, category });
+
+  // Non-PII projection of the signed-in user, so PostCard can render optimistic
+  // comments with an author before the server round-trip resolves.
+  const currentUser: PublicProfile = {
+    id: user.id,
+    fullName: user.fullName,
+    avatarUrl: user.avatarUrl,
+    role: user.role,
+    isVerifiedAgent: user.isVerifiedAgent,
+    neighborhood: user.neighborhood,
+  };
 
   return (
     <div className="grid lg:grid-cols-[1fr_300px] gap-6">
@@ -75,7 +90,9 @@ export default async function CommunityCollabPage({
               No posts in this category yet. Be the first to share something.
             </p>
           ) : (
-            posts.map((p) => <PostCard key={p.id} post={p} />)
+            posts.map((p) => (
+              <PostCard key={p.id} post={p} currentUser={currentUser} />
+            ))
           )}
         </div>
       </div>

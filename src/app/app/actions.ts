@@ -1,9 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createComment, createPost } from "@/lib/store";
 import { getCurrentUser } from "@/lib/session";
+import type { Comment, PublicProfile } from "@/lib/types";
 
 const postSchema = z.object({
   body: z.string().trim().min(1, "Write something first.").max(2000),
@@ -34,7 +34,10 @@ export async function createPostAction(formData: FormData) {
     category,
   });
 
-  revalidatePath("/app");
+  // No revalidation: the DB moderation trigger holds new posts as pending, so
+  // they don't surface in the feed until an admin approves. Refetching the feed
+  // here would show nothing new and just add latency. The client shows a
+  // "pending review" confirmation instead.
   return { ok: true };
 }
 
@@ -43,7 +46,11 @@ const commentSchema = z.object({
   body: z.string().trim().min(1, "Write a comment first.").max(1000),
 });
 
-export async function addCommentAction(formData: FormData) {
+type CommentWithAuthor = Comment & { author: PublicProfile };
+
+export async function addCommentAction(
+  formData: FormData,
+): Promise<{ error: string } | { ok: true; comment: CommentWithAuthor }> {
   const user = await getCurrentUser();
   if (!user) return { error: "You must be signed in." };
 
@@ -52,12 +59,23 @@ export async function addCommentAction(formData: FormData) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid comment." };
   }
 
-  await createComment({
+  const comment = await createComment({
     postId: parsed.data.postId,
     authorId: user.id,
     body: parsed.data.body,
   });
 
-  revalidatePath("/app");
-  return { ok: true };
+  // Return the created row (with its author) so the client can render the real
+  // comment directly. Comments have no moderation gate, so this avoids a full
+  // feed refetch via revalidatePath.
+  const author: PublicProfile = {
+    id: user.id,
+    fullName: user.fullName,
+    avatarUrl: user.avatarUrl,
+    role: user.role,
+    isVerifiedAgent: user.isVerifiedAgent,
+    neighborhood: user.neighborhood,
+  };
+
+  return { ok: true, comment: { ...comment, author } };
 }
